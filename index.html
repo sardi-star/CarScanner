@@ -29,11 +29,12 @@
             background: #94a3b8;
         }
         
-        /* Forces the camera video element to scale without stretching/squishing pixels */
+        /* Fixed: Prevents visual cropping mismatch on mobile portrait displays */
         #reader video {
-            object-fit: cover !important;
+            object-fit: contain !important;
             width: 100% !important;
             height: 100% !important;
+            background: #090d16 !important;
         }
     </style>
 </head>
@@ -745,18 +746,13 @@
             html5QrcodeScanner = new Html5Qrcode("reader");
             isCameraInitialized = true;
 
-            // HD scanning optimization configurations (forces crisp image capture & perfect proportions)
+            // Updated configurations: Streamlined constraints to prevent coordinate offsets on portrait cellphones
             const config = { 
                 fps: 20, 
                 qrbox: (width, height) => {
-                    // Scanning region scale dynamically to 70% of parent dimensions
-                    const side = Math.min(width, height) * 0.70;
+                    // Scanning region scale dynamically to 75% of parent dimensions
+                    const side = Math.min(width, height) * 0.75;
                     return { width: Math.floor(side), height: Math.floor(side) };
-                },
-                videoConstraints: {
-                    facingMode: "environment",
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 }
                 }
             };
 
