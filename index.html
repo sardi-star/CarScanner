@@ -1,475 +1,1049 @@
 <!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-900 text-slate-100">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultimate Web QR Scanner</title>
+    <title>Smart QR Spreadsheet Sync</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- HTML5 QR Code Scanner Library (Clean, reliable CDN without strict SRI hashes that cause blocking) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- html5-qrcode for Camera Scanning -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- QRCodeJS for Mobile Pairing QR Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        /* Custom styled QR scanner layout overriding default library look */
-        #reader {
-            border: none !important;
-            border-radius: 1rem;
-            overflow: hidden;
+        /* Custom scrollbar for spreadsheet styling */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
         }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        
+        /* Forces the camera video element to scale without stretching/squishing pixels */
         #reader video {
             object-fit: cover !important;
-            border-radius: 1rem;
-        }
-        /* Custom scanning animation line */
-        .scan-laser {
-            position: absolute;
-            left: 5%;
-            width: 90%;
-            height: 3px;
-            background: linear-gradient(to right, transparent, #3b82f6, #60a5fa, #3b82f6, transparent);
-            box-shadow: 0 0 12px 3px rgba(59, 130, 246, 0.7);
-            animation: scan 2s linear infinite;
-            z-index: 10;
-            pointer-events: none;
-        }
-        @keyframes scan {
-            0% { top: 10%; }
-            50% { top: 90%; }
-            100% { top: 10%; }
+            width: 100% !important;
+            height: 100% !important;
         }
     </style>
 </head>
-<body class="flex flex-col min-h-screen font-sans">
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col">
 
-    <div class="flex-grow max-w-lg w-full mx-auto px-4 py-6 flex flex-col justify-between">
-        
-        <!-- Header -->
-        <header class="text-center mb-6">
-            <div class="inline-flex p-3 bg-blue-600/10 rounded-full text-blue-400 mb-2 border border-blue-500/20">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                </svg>
+    <!-- Top Navigation Bar -->
+    <header class="bg-indigo-600 text-white shadow-md px-6 py-4 flex flex-wrap justify-between items-center gap-4">
+        <div class="flex items-center space-x-3">
+            <div class="bg-white text-indigo-600 p-2 rounded-lg shadow-inner">
+                <i class="fa-solid fa-qrcode text-2xl"></i>
             </div>
-            <h1 class="text-2xl font-bold tracking-tight text-white">Live QR Scanner</h1>
-            <p class="text-sm text-slate-400">Scan any code instantly using your device's camera</p>
-        </header>
-
-        <!-- Main Scanning Workspace -->
-        <main class="space-y-6 flex-grow flex flex-col justify-center">
-            
-            <!-- Camera Viewfinder Card -->
-            <div class="relative bg-slate-800/50 backdrop-blur-md rounded-2xl border border-slate-700/50 p-4 shadow-xl overflow-hidden flex flex-col justify-center min-h-[300px]">
-                
-                <!-- Laser line (Only active when scanning) -->
-                <div id="laserLine" class="scan-laser hidden"></div>
-
-                <!-- Scanner Element -->
-                <div id="reader" class="w-full bg-slate-950 rounded-xl"></div>
-                
-                <!-- Custom Fallback / Permission State Message -->
-                <div id="scannerPlaceholder" class="flex flex-col items-center justify-center text-center p-8 space-y-4">
-                    <div class="p-4 bg-slate-700/30 rounded-full text-slate-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
-                    </div>
-                    <div>
-                        <p class="text-base font-medium text-slate-300">Camera access is required</p>
-                        <p class="text-xs text-slate-500 max-w-xs mt-1">Tap the button below to grant permission and initiate the camera scanner.</p>
-                    </div>
-                    <button id="startScanBtn" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 active:scale-95 transition text-white font-medium rounded-xl text-sm shadow-lg shadow-blue-500/20 flex items-center gap-2">
-                        Start Camera Scanner
-                    </button>
-                </div>
-
-                <!-- Diagnostic Info Card (Triggered if camera is blocked/fails) -->
-                <div id="diagnosticCard" class="hidden flex flex-col items-center justify-center text-center p-6 space-y-4">
-                    <div class="p-3 bg-red-500/10 rounded-full text-red-400 border border-red-500/20">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
-                    </div>
-                    <div class="space-y-2">
-                        <h4 class="text-md font-bold text-red-400">Camera Permission Blocked</h4>
-                        <p class="text-xs text-slate-300 leading-relaxed max-w-xs mx-auto">
-                            Google Sites restricts nested live camera access inside their page embeds.
-                        </p>
-                        <div class="text-left text-xs bg-slate-900/60 p-3 rounded-lg space-y-2 border border-slate-700/30 text-slate-400">
-                            <p><strong>Option A:</strong> Use the green "Upload / Snap QR Image" button below to take a picture of the QR code with your phone!</p>
-                            <p><strong>Option B:</strong> Open this scanner outside Google Sites directly in your Safari/Chrome browser.</p>
-                        </div>
-                    </div>
-                    <button id="retryScanBtn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 transition text-slate-200 font-medium rounded-lg text-xs">
-                        Try Again
-                    </button>
-                </div>
-
-                <!-- Active Control bar (hidden until scanner starts) -->
-                <div id="controlBar" class="hidden mt-4 flex justify-between items-center gap-2 border-t border-slate-700/50 pt-3">
-                    <button id="switchCamBtn" class="flex-1 py-2 px-3 bg-slate-700/50 hover:bg-slate-700 text-slate-200 text-xs font-medium rounded-lg transition flex items-center justify-center gap-1.5">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15.89M9 11l3 3L21 4" />
-                        </svg>
-                        Flip Camera
-                    </button>
-                    <button id="stopScanBtn" class="flex-1 py-2 px-3 bg-red-900/40 hover:bg-red-900/60 text-red-200 text-xs font-medium rounded-lg transition flex items-center justify-center gap-1.5 border border-red-500/20">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                        Stop Scan
-                    </button>
-                </div>
-
+            <div>
+                <h1 class="text-xl font-bold tracking-tight">QR ScanSync</h1>
+                <p class="text-xs text-indigo-200">Real-time Google Spreadsheet Connector</p>
             </div>
-
-            <!-- Image Upload Trigger (Highly Optimized Fallback) -->
-            <div class="text-center bg-slate-800/25 p-4 rounded-xl border border-slate-700/40">
-                <p class="text-xs text-slate-400 mb-2.5">Take a photo or upload an image instead:</p>
-                <label class="inline-flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-95 cursor-pointer text-white text-sm font-semibold rounded-xl shadow-lg shadow-emerald-950/30 transition">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    Upload / Snap QR Image
-                    <input type="file" id="qrFileInput" accept="image/*" class="hidden">
-                </label>
-            </div>
-
-            <!-- Dynamic Scan Results Modal/Card -->
-            <div id="resultCard" class="hidden bg-slate-800 border-2 border-emerald-500/30 rounded-2xl p-5 shadow-2xl relative overflow-hidden transition-all duration-300">
-                <div class="absolute top-0 left-0 right-0 h-1.5 bg-emerald-500"></div>
-                <div class="flex items-start gap-4">
-                    <div class="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </div>
-                    <div class="flex-grow space-y-1.5">
-                        <h3 class="text-sm font-bold text-slate-300 uppercase tracking-wider">Scanned Result</h3>
-                        <p id="resultText" class="text-base text-white font-mono break-all selection:bg-emerald-500/30"></p>
-                    </div>
-                </div>
-
-                <!-- Action Toolbar -->
-                <div class="mt-4 flex gap-2 border-t border-slate-700/50 pt-4">
-                    <button id="copyBtn" class="flex-1 py-2.5 px-4 bg-slate-700 hover:bg-slate-600 active:scale-95 text-slate-200 text-sm font-medium rounded-xl transition flex items-center justify-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
-                        </svg>
-                        Copy Result
-                    </button>
-                    <a id="actionLinkBtn" target="_blank" class="hidden flex-1 py-2.5 px-4 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-sm font-medium rounded-xl transition flex items-center justify-center gap-2 text-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                        Open Link
-                    </a>
-                </div>
-            </div>
-
-            <!-- Scan History Accordion -->
-            <div class="bg-slate-800/30 border border-slate-700/50 rounded-2xl p-4">
-                <div class="flex justify-between items-center mb-3">
-                    <h3 class="text-sm font-semibold text-slate-300 flex items-center gap-1.5">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        Scan History
-                    </h3>
-                    <button id="clearHistoryBtn" class="text-xs text-red-400 hover:text-red-300 transition hidden">Clear All</button>
-                </div>
-                <div id="historyList" class="space-y-2 max-h-36 overflow-y-auto pr-1 text-xs text-slate-400">
-                    <p id="emptyHistoryMsg" class="text-center py-4 text-slate-500 italic">No previous scans found</p>
-                </div>
-            </div>
-
-        </main>
-
-        <!-- Toast Notifications (No standard alerts used) -->
-        <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 transform scale-90 opacity-0 pointer-events-none transition-all duration-300 px-4 py-2 bg-slate-850 border border-blue-500/30 text-blue-200 text-xs font-semibold rounded-full shadow-lg z-50 flex items-center gap-2">
-            <span id="toastMessage">Action performed successfully</span>
         </div>
 
-        <!-- Footer -->
-        <footer class="mt-6 text-center text-xs text-slate-500">
-            Powered by HTML5-QRCode • Perfect for Mobile & Google Sites
-        </footer>
+        <!-- Real-Time Sync Status Badge -->
+        <div class="flex items-center space-x-3 bg-indigo-700/50 px-4 py-2 rounded-full border border-indigo-500/30">
+            <div class="flex items-center space-x-2">
+                <span id="sync-indicator" class="h-2.5 w-2.5 bg-yellow-400 rounded-full animate-pulse"></span>
+                <span id="sync-status" class="text-xs font-semibold">Connecting Sync Engine...</span>
+            </div>
+            <button onclick="openSyncModal()" class="text-xs bg-indigo-500 hover:bg-indigo-400 text-white font-medium px-2.5 py-1 rounded-md transition duration-150" title="Connect another device">
+                <i class="fa-solid fa-mobile-screen-button mr-1"></i> Sync Phone
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Grid -->
+    <main class="flex-grow p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Left Column: Scanning Tools (5 Columns wide on large screens) -->
+        <section class="lg:col-span-5 flex flex-col space-y-6">
+            
+            <!-- Tab Controls for Scanning Options -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
+                <div class="flex bg-slate-100 p-1.5 rounded-xl">
+                    <button onclick="switchTab('camera')" id="tab-btn-camera" class="flex-1 py-2 text-sm font-semibold rounded-lg bg-white text-indigo-600 shadow-sm transition-all duration-200 flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-camera"></i>
+                        <span>Camera Scan</span>
+                    </button>
+                    <button onclick="switchTab('file')" id="tab-btn-file" class="flex-1 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-slate-900 transition-all duration-200 flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-file-image"></i>
+                        <span>Upload Image</span>
+                    </button>
+                    <button onclick="switchTab('manual')" id="tab-btn-manual" class="flex-1 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-slate-900 transition-all duration-200 flex items-center justify-center space-x-2">
+                        <i class="fa-solid fa-keyboard"></i>
+                        <span>Manual Entry</span>
+                    </button>
+                </div>
+
+                <!-- Tab 1: Camera Scanner -->
+                <div id="tab-content-camera" class="mt-4 space-y-4">
+                    <div class="relative bg-slate-950 rounded-xl overflow-hidden aspect-video flex flex-col items-center justify-center text-white border border-slate-800">
+                        <!-- Custom Scan Box overlay -->
+                        <div id="custom-scan-overlay" class="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
+                            <div class="w-48 h-48 border-2 border-indigo-500 rounded-2xl opacity-60 flex items-center justify-center">
+                                <div class="w-44 h-44 border border-dashed border-indigo-400 rounded-xl animate-pulse"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Reader HTML Target -->
+                        <div id="reader" class="w-full h-full"></div>
+
+                        <!-- Fallback message / Start button -->
+                        <div id="camera-placeholder" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 p-6 text-center z-20">
+                            <i class="fa-solid fa-camera-rotate text-4xl text-slate-500 mb-3"></i>
+                            <p class="font-medium text-sm text-slate-300">Camera scanning is inactive</p>
+                            <p class="text-xs text-slate-500 mt-1 max-w-xs mb-4">Grant permissions to scan labels instantly</p>
+                            <button onclick="startCamera()" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow-md transition duration-150">
+                                <i class="fa-solid fa-play mr-1"></i> Initialize Camera
+                            </button>
+                        </div>
+
+                        <!-- Elegant Embed Security Permission Block Screen -->
+                        <div id="camera-iframe-blocker" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-slate-900 p-6 text-center z-30">
+                            <i class="fa-solid fa-triangle-exclamation text-4xl text-amber-500 mb-3 animate-pulse"></i>
+                            <p class="font-bold text-sm text-slate-200">Google Sites Restriction detected</p>
+                            <p class="text-[11px] text-slate-400 mt-1.5 max-w-xs mb-4 leading-relaxed">
+                                Live video streams are restricted inside Google Sites widgets. Use our direct photo workaround to scan immediately, or open in a direct tab.
+                            </p>
+                            
+                            <div class="flex flex-col w-full max-w-xs space-y-2">
+                                <!-- WORKAROUND: Triggers native device camera immediately -->
+                                <button onclick="triggerNativeCamera()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow transition flex items-center justify-center space-x-1.5">
+                                    <i class="fa-solid fa-camera"></i>
+                                    <span>Snap QR with Phone Camera</span>
+                                </button>
+                                
+                                <button onclick="launchStandalone()" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg shadow transition flex items-center justify-center space-x-1.5">
+                                    <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                                    <span>Open Standalone Tab</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Hidden file input using capture="environment" to force cell phones to open native Camera app directly -->
+                    <input type="file" id="camera-native-fallback" accept="image/*" capture="environment" class="hidden" onchange="handleNativeCameraFallback(event)">
+
+                    <div class="flex items-center justify-between text-xs text-slate-500 px-1">
+                        <span class="flex items-center"><i class="fa-solid fa-circle-info text-indigo-500 mr-1.5"></i> Hold QR code steady in front of lens</span>
+                        <button onclick="stopCamera()" id="btn-stop-camera" class="hidden text-rose-600 hover:text-rose-700 font-semibold flex items-center">
+                            <i class="fa-solid fa-stop mr-1"></i> Stop Camera
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tab 2: File Image Upload -->
+                <div id="tab-content-file" class="hidden mt-4 space-y-4">
+                    <label class="flex flex-col items-center justify-center w-full h-44 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer bg-slate-50 hover:bg-slate-100 transition duration-150">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6 text-center px-4">
+                            <i class="fa-solid fa-cloud-arrow-up text-3xl text-slate-400 mb-3"></i>
+                            <p class="text-sm text-slate-600 font-semibold mb-1">Click to upload a QR code image</p>
+                            <p class="text-xs text-slate-400">Supports PNG, JPG, JPEG files from device</p>
+                        </div>
+                        <input type="file" id="qr-file-input" accept="image/*" class="hidden" onchange="handleFileScan(event)" />
+                    </label>
+                    <div id="file-scan-feedback" class="hidden text-xs text-center p-2 rounded-lg bg-emerald-50 text-emerald-700 font-medium"></div>
+                </div>
+
+                <!-- Tab 3: Manual ID Entry -->
+                <div id="tab-content-manual" class="hidden mt-4 space-y-4">
+                    <form onsubmit="handleManualSubmit(event)" class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Manual ID / Barcode Value</label>
+                            <input type="text" id="manual-id-input" placeholder="e.g. 1042" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" required>
+                        </div>
+                        <button type="submit" class="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow transition">
+                            <i class="fa-solid fa-plus mr-1"></i> Register Code Into Spreadsheet
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Right Column: Interactive Spreadsheet (7 Columns wide on large screens) -->
+        <section class="lg:col-span-7 flex flex-col bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden min-h-[500px]">
+            
+            <!-- Spreadsheet Header -->
+            <div class="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4 bg-slate-50/50">
+                <div>
+                    <h2 class="font-bold text-base text-slate-900 flex items-center">
+                        <i class="fa-solid fa-table text-indigo-600 mr-2"></i> Synced QR Registry Spreadsheet
+                    </h2>
+                    <p class="text-xs text-slate-500 mt-0.5" id="record-count">0 items recorded in database</p>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="exportToCSV()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-1.8 rounded-lg shadow-sm flex items-center space-x-1.5 transition">
+                        <i class="fa-solid fa-file-excel"></i>
+                        <span>Export CSV</span>
+                    </button>
+                    <button onclick="openClearConfirmModal()" class="bg-slate-100 hover:bg-rose-50 text-slate-600 hover:text-rose-700 text-xs font-semibold px-3 py-1.8 rounded-lg border border-slate-200 hover:border-rose-200 flex items-center space-x-1.5 transition">
+                        <i class="fa-solid fa-trash-can"></i>
+                        <span>Clear All</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Live Active Scanning Indicator & Toast Container -->
+            <div id="live-scan-toast" class="hidden mx-4 my-2 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center justify-between shadow-sm animate-fade-in">
+                <span class="flex items-center">
+                    <i class="fa-solid fa-check-double text-emerald-600 mr-2 text-sm animate-bounce"></i>
+                    <span id="toast-text">New code scanned successfully!</span>
+                </span>
+                <button onclick="hideToast()" class="text-emerald-500 hover:text-emerald-700">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Spreadsheet Grid Container -->
+            <div class="flex-grow overflow-auto relative">
+                <table class="w-full text-left text-xs border-collapse">
+                    <thead class="bg-slate-100 text-slate-600 font-bold tracking-wide uppercase border-b border-slate-200 sticky top-0 z-10">
+                        <tr>
+                            <th class="py-3 px-4 border-r border-slate-200">#</th>
+                            <th class="py-3 px-4 border-r border-slate-200 min-w-[130px]">Code/ID Number</th>
+                            <th class="py-3 px-4 border-r border-slate-200 min-w-[140px]">Item Name</th>
+                            <th class="py-3 px-4 border-r border-slate-200 min-w-[110px]">Category</th>
+                            <th class="py-3 px-4 border-r border-slate-200 min-w-[90px]">Status</th>
+                            <th class="py-3 px-4 border-r border-slate-200 min-w-[140px]">Scanned At</th>
+                            <th class="py-3 px-4 text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="spreadsheet-rows" class="divide-y divide-slate-100">
+                        <!-- Dynamic spreadsheet rows inject here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Spreadsheet Footer Stats -->
+            <div class="p-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-slate-500 text-[10px]">
+                <div class="flex items-center space-x-2">
+                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                    <span>Database listener online</span>
+                </div>
+                <span>Sync Code ID: <span id="app-id-display" class="font-mono bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">...</span></span>
+            </div>
+        </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-900 text-slate-400 text-xs py-6 px-4 border-t border-slate-800 text-center space-y-2">
+        <p class="mb-1">QR ScanSync App — High Performance QR Code Scanner and Real-Time Ledger Integration</p>
+        <div class="text-[11px] text-slate-500 flex flex-col sm:flex-row justify-center items-center gap-1 sm:gap-2">
+            <span>Connected Directly to: Car Pick Up FULL 25-26 ("ScannerLog")</span>
+            <span class="hidden sm:inline text-slate-700">•</span>
+            <a href="https://docs.google.com/spreadsheets/d/1mvPHLoOnis8ov6DCRvOwprNtFEaOowzWdmGa_6L63lI/edit?gid=1507436529" target="_blank" class="text-emerald-500 hover:text-emerald-400 font-semibold inline-flex items-center space-x-1 underline decoration-emerald-500/30 hover:decoration-emerald-400">
+                <i class="fa-solid fa-arrow-up-right-from-square text-[10px]"></i>
+                <span>Open Connected Google Sheet</span>
+            </a>
+        </div>
+    </footer>
+
+    <!-- MODAL 1: Synced Phone Setup / QR Code Sharing -->
+    <div id="sync-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full overflow-hidden animate-scale-in">
+            <div class="bg-indigo-600 text-white px-6 py-4 flex items-center justify-between">
+                <h3 class="font-bold text-base flex items-center">
+                    <i class="fa-solid fa-mobile-screen-button mr-2"></i> Live Mobile Syncing
+                </h3>
+                <button onclick="closeSyncModal()" class="text-white/80 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4 text-center">
+                <p class="text-xs text-slate-600">
+                    Use your mobile phone's native camera to scan the code below. It will open this exact synchronized app instance. Anything you scan on your phone will append straight into your spreadsheet in real-time!
+                </p>
+
+                <!-- Phone pairing QR code target -->
+                <div class="flex justify-center p-4 bg-slate-50 border rounded-xl max-w-[200px] mx-auto">
+                    <div id="phone-sync-qrcode"></div>
+                </div>
+
+                <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+                    <span class="block text-[10px] uppercase font-bold tracking-wider text-slate-400">Shareable App Instance Link</span>
+                    <span id="sync-share-url" class="text-xs font-mono text-indigo-600 break-all select-all font-semibold">Generating link...</span>
+                </div>
+
+                <div class="flex space-x-2 pt-2">
+                    <button onclick="copySyncLink()" class="flex-grow py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition">
+                        <i class="fa-solid fa-copy mr-1"></i> Copy Link
+                    </button>
+                    <button onclick="closeSyncModal()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition">
+                        Done
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <script>
-        // DOM Elements
-        const readerEl = document.getElementById('reader');
-        const startScanBtn = document.getElementById('startScanBtn');
-        const stopScanBtn = document.getElementById('stopScanBtn');
-        const retryScanBtn = document.getElementById('retryScanBtn');
-        const switchCamBtn = document.getElementById('switchCamBtn');
-        const scannerPlaceholder = document.getElementById('scannerPlaceholder');
-        const diagnosticCard = document.getElementById('diagnosticCard');
-        const controlBar = document.getElementById('controlBar');
-        const laserLine = document.getElementById('laserLine');
-        const resultCard = document.getElementById('resultCard');
-        const resultText = document.getElementById('resultText');
-        const copyBtn = document.getElementById('copyBtn');
-        const actionLinkBtn = document.getElementById('actionLinkBtn');
-        const qrFileInput = document.getElementById('qrFileInput');
-        const historyList = document.getElementById('historyList');
-        const emptyHistoryMsg = document.getElementById('emptyHistoryMsg');
-        const clearHistoryBtn = document.getElementById('clearHistoryBtn');
-        const toast = document.getElementById('toast');
-        const toastMessage = document.getElementById('toastMessage');
+    <!-- MODAL 2: Row Edit Dialog -->
+    <div id="edit-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full overflow-hidden">
+            <div class="bg-slate-800 text-white px-6 py-4 flex items-center justify-between">
+                <h3 class="font-bold text-sm">Edit Record</h3>
+                <button onclick="closeEditModal()" class="text-white/80 hover:text-white">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            <form onsubmit="handleEditSubmit(event)" class="p-6 space-y-4">
+                <input type="hidden" id="edit-row-id">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">Scanned ID (Read-only)</label>
+                    <input type="text" id="edit-code" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 font-mono text-slate-500" readonly>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">Item Description / Name</label>
+                    <input type="text" id="edit-name" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 focus:outline-none" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">Category</label>
+                    <input type="text" id="edit-category" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 focus:outline-none" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-500 mb-1">Status</label>
+                    <select id="edit-status" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:ring-1 focus:ring-indigo-500 focus:outline-none">
+                        <option value="Scanned">Scanned</option>
+                        <option value="Verified">Verified</option>
+                        <option value="Dispatched">Dispatched</option>
+                        <option value="Returned">Returned</option>
+                    </select>
+                </div>
+                <div class="flex space-x-2 pt-2">
+                    <button type="button" onclick="closeEditModal()" class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition">
+                        Cancel
+                    </button>
+                    <button type="submit" class="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow transition">
+                        Save Changes
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-        let html5QrCode = null;
-        let currentFacingMode = "environment"; // Try back camera first on mobile
-        let history = JSON.parse(localStorage.getItem('qr_history') || '[]');
+    <!-- MODAL 3: Clear Confirm Dialog -->
+    <div id="clear-confirm-modal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-xs w-full overflow-hidden p-6 text-center space-y-4">
+            <div class="w-12 h-12 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto text-xl">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+            </div>
+            <div>
+                <h3 class="font-bold text-slate-800 text-sm">Clear Spreadsheet Data?</h3>
+                <p class="text-xs text-slate-500 mt-1">This will permanently delete all scanned rows across all connected synchronized sessions.</p>
+            </div>
+            <div class="flex space-x-2">
+                <button onclick="closeClearConfirmModal()" class="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition">
+                    No, Cancel
+                </button>
+                <button onclick="clearAllData()" class="flex-1 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow transition">
+                    Yes, Clear All
+                </button>
+            </div>
+        </div>
+    </div>
 
-        // Initialize App & History List
-        renderHistory();
+    <!-- UI Feedback Toast system -->
+    <div id="global-toast" class="hidden fixed bottom-6 right-6 z-50 p-4 rounded-xl shadow-lg border text-white max-w-sm flex items-center space-x-3 animate-slide-up">
+        <div id="global-toast-icon" class="text-lg"></div>
+        <div class="text-xs font-semibold" id="global-toast-msg"></div>
+    </div>
 
-        // Start scanning click handlers
-        startScanBtn.addEventListener('click', () => {
-            initScanner();
-        });
+    <!-- Firebase SDK Imports (v11.6.1 ES module / compatibility compatible builds via CDN) -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js';
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js';
+        import { getFirestore, collection, doc, setDoc, addDoc, getDocs, updateDoc, deleteDoc, onSnapshot, query } from 'https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js';
+
+        // ----------------- STATE & GLOBALS -----------------
+        let app = null;
+        let auth = null;
+        let db = null;
+        let appId = '';
+        let currentUser = null;
+        let dbUnsubscribe = null;
+        let isCameraInitialized = false;
+        let html5QrcodeScanner = null;
+        let scansData = []; // Local mirror of Firestore scans
+
+        // Preconfigured Apps Script Web App Endpoint URL targeting the "ScannerLog" sheet
+        const googleScriptUrl = "https://script.google.com/macros/s/AKfycbwpKuG-ugcS-4sZdXl6ITQ1sMqr5i8m36lfJJyA1ZmQWt29TGhHNC2VbKO-7WSRmUJTWg/exec";
+
+        // ----------------- FIREBASE SETUP -----------------
+        const fallbackConfig = {
+            apiKey: "mock-api-key-for-local-runs",
+            authDomain: "qr-scansync.firebaseapp.com",
+            projectId: "qr-scansync",
+            storageBucket: "qr-scansync.appspot.com",
+            messagingSenderId: "1234567890",
+            appId: "1:123456:web:abcd123"
+        };
+
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : fallbackConfig;
         
-        retryScanBtn.addEventListener('click', () => {
-            diagnosticCard.classList.add('hidden');
-            initScanner();
+        // Extract or generate current Unique App Instance ID
+        const getAppInstanceId = () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('syncId')) {
+                return urlParams.get('syncId');
+            }
+            if (typeof __app_id !== 'undefined' && __app_id) {
+                return __app_id;
+            }
+            
+            // Check storage first to keep consistency on page reload
+            let localAppId = localStorage.getItem('scansync_app_id');
+            if (!localAppId) {
+                localAppId = 'qr-sync-' + Math.random().toString(36).substring(2, 10);
+                localStorage.setItem('scansync_app_id', localAppId);
+            }
+            return localAppId;
+        };
+
+        appId = getAppInstanceId();
+        document.getElementById('app-id-display').innerText = appId;
+
+        // Initialize SDKs
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+        } catch (err) {
+            console.error("Firebase startup failed: ", err);
+            showToast("Database system is offline. Using local storage mode.", "warning");
+        }
+
+        // ----------------- USER AUTH FLOW (RULE 3) -----------------
+        const authenticateUser = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (err) {
+                console.error("Authentication failed: ", err);
+                showToast("Live sync engine offline. Data won't share.", "error");
+            }
+        };
+
+        // Initialize application workflow on page ready
+        window.addEventListener('load', async () => {
+            // Set up mobile pairing codes immediately so UI doesn't look blank
+            setupPairingCodes();
+
+            if (auth) {
+                // Initialize Authentication (First)
+                await authenticateUser();
+                
+                // Watch Auth State Changes
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        currentUser = user;
+                        updateSyncBadge('connected', 'Live Cloud Synced');
+                        startDatabaseListener();
+                    } else {
+                        updateSyncBadge('offline', 'Offline Mode');
+                    }
+                });
+            } else {
+                updateSyncBadge('offline', 'Offline Mode');
+                loadLocalBackupData();
+            }
         });
 
-        // Initialize scanner logic
-        function initScanner() {
-            // Guard: check if the HTML5 QR Code library successfully loaded
-            if (typeof Html5Qrcode === 'undefined') {
-                showToast("Scanning library failed to load. Check your internet connection.");
-                showDiagnostics();
-                return;
-            }
+        // ----------------- FIRESTORE LIVE DATA SYNC (RULE 1 & 2) -----------------
+        const startDatabaseListener = () => {
+            if (!currentUser || !db) return;
 
-            // Instantiate library element if not exists
-            if (!html5QrCode) {
-                html5QrCode = new Html5Qrcode("reader");
-            }
+            // Strict compliance path structure for shared public data (RULE 1)
+            const publicScansCollection = collection(db, 'artifacts', appId, 'public', 'data', 'scanned_ids');
+            
+            // Simple query fetch (RULE 2 - No complex orderBys or compound limits on Firestore side)
+            dbUnsubscribe = onSnapshot(publicScansCollection, (snapshot) => {
+                const loadedData = [];
+                snapshot.forEach((doc) => {
+                    loadedData.push({ id: doc.id, ...doc.data() });
+                });
+                
+                // Handle sorting entirely on client-side memory
+                loadedData.sort((a, b) => b.timestamp - a.timestamp);
+                scansData = loadedData;
+                
+                renderSpreadsheet();
+            }, (error) => {
+                console.error("Firestore read exception: ", error);
+                showToast("Permissions Error. Fetching via local memory.", "error");
+            });
+        };
 
-            // Hide placeholder and diagnostics, display scanner elements
-            scannerPlaceholder.classList.add('hidden');
-            diagnosticCard.classList.add('hidden');
-            controlBar.classList.remove('hidden');
-            laserLine.classList.remove('hidden');
+        // Write row safely into Sync Storage
+        const writeScannedRow = async (codeId) => {
+            const timestampVal = Date.now();
+            const dateStr = new Date(timestampVal).toLocaleString();
 
-            const config = { 
-                fps: 15, 
-                qrbox: function(width, height) {
-                    const minDimension = Math.min(width, height);
-                    const boxSize = Math.floor(minDimension * 0.70);
-                    return { width: boxSize, height: boxSize };
-                },
-                aspectRatio: 1.0 
+            const recordData = {
+                codeId: codeId,
+                name: `Item ${codeId}`,
+                category: "ScannerLog",
+                status: "Scanned",
+                timestamp: timestampVal,
+                dateStr: dateStr,
+                device: navigator.platform || "Web Browser"
             };
 
-            html5QrCode.start(
-                { facingMode: currentFacingMode },
-                config,
-                onScanSuccess,
-                onScanFailure
-            ).catch(err => {
-                console.warn("Camera start failed: ", err);
-                showDiagnostics();
-            });
-        }
-
-        // Show diagnostics screen when camera initialization fails (e.g. iframe permission blockage)
-        function showDiagnostics() {
-            controlBar.classList.add('hidden');
-            laserLine.classList.add('hidden');
-            scannerPlaceholder.classList.add('hidden');
-            diagnosticCard.classList.remove('hidden');
-        }
-
-        // Stop scanning logic
-        function stopScanner() {
-            if (html5QrCode && html5QrCode.isScanning) {
-                html5QrCode.stop().then(() => {
-                    resetUI();
-                }).catch(err => {
-                    console.error("Failed to stop scanner smoothly", err);
-                    resetUI();
-                });
+            // Save to Firestore if connected
+            if (currentUser && db) {
+                // Rule 1 structured path
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'scanned_ids', `doc-${timestampVal}`);
+                try {
+                    await setDoc(docRef, recordData);
+                    triggerSuccessToast(codeId, recordData.name);
+                    
+                    // Trigger Google Sheet sync asynchronously in background
+                    triggerGoogleSheetSync(recordData);
+                } catch (e) {
+                    console.error("Firestore write failure", e);
+                    backupToLocal(recordData);
+                    triggerGoogleSheetSync(recordData);
+                }
             } else {
-                resetUI();
+                // Fallback direct storage
+                backupToLocal(recordData);
+                triggerGoogleSheetSync(recordData);
             }
-        }
+        };
 
-        function resetUI() {
-            scannerPlaceholder.classList.remove('hidden');
-            diagnosticCard.classList.add('hidden');
-            controlBar.classList.add('hidden');
-            laserLine.classList.add('hidden');
-        }
-
-        stopScanBtn.addEventListener('click', stopScanner);
-
-        // Switch Camera (Flip facing mode)
-        switchCamBtn.addEventListener('click', () => {
-            if (html5QrCode && html5QrCode.isScanning) {
-                currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
-                html5QrCode.stop().then(() => {
-                    initScanner(); // restart with new facing mode
+        // Google Sheet Apps Script webhook trigger (Uses your Web App URL)
+        const triggerGoogleSheetSync = async (recordData) => {
+            try {
+                updateSyncBadge('processing', 'Syncing to Google Sheets...');
+                
+                // POST request directly into your deployed Apps Script Web App
+                await fetch(googleScriptUrl, {
+                    method: 'POST',
+                    mode: 'no-cors', // standard cross-origin bypass required for Apps Script Web Apps
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(recordData)
                 });
+                
+                showToast("✓ Synced to Google Sheet 'ScannerLog'!", "success");
+            } catch (err) {
+                console.error("Failed to sync to Google Spreadsheet Webhook: ", err);
+                showToast("Google Sheet Connection Error.", "error");
+            } finally {
+                updateSyncBadge('connected', 'Live Cloud Synced');
             }
-        });
+        };
 
-        // Handle scanned code success
-        function onScanSuccess(decodedText, decodedResult) {
-            // Vibrate device if supported
-            if (navigator.vibrate) {
-                navigator.vibrate(100);
-            }
+        // ----------------- UI CONTROL & RENDERING -----------------
+        const renderSpreadsheet = () => {
+            const tableBody = document.getElementById('spreadsheet-rows');
+            const recordCountText = document.getElementById('record-count');
             
-            displayResult(decodedText);
-            saveToHistory(decodedText);
-            stopScanner();
-        }
-
-        // Handle scan failure (fires continuously while scanning, safe to ignore logs)
-        function onScanFailure(error) {
-            // Silent fallback to avoid flooding console performance
-        }
-
-        // Process file upload logic
-        qrFileInput.addEventListener('change', e => {
-            if (e.target.files.length === 0) return;
+            // Clear current items
+            tableBody.innerHTML = '';
             
-            if (typeof Html5Qrcode === 'undefined') {
-                showToast("Library not loaded. Please reload the page.");
+            if (scansData.length === 0) {
+                // Programmatically generate empty state row
+                const emptyRow = document.createElement('tr');
+                emptyRow.id = "empty-state";
+                emptyRow.innerHTML = `
+                    <td colspan="7" class="py-12 text-center text-slate-400">
+                        <div class="flex flex-col items-center justify-center space-y-2">
+                            <i class="fa-solid fa-folder-open text-4xl text-slate-300"></i>
+                            <p class="font-medium text-sm text-slate-500">Spreadsheet is currently empty</p>
+                            <p class="text-xs max-w-sm">Scan a QR code or enter one manually to watch the rows populate in real-time!</p>
+                        </div>
+                    </td>
+                `;
+                tableBody.appendChild(emptyRow);
+                recordCountText.innerText = "0 items recorded in database";
                 return;
             }
 
-            const file = e.target.files[0];
-            const tempScanner = new Html5Qrcode("reader");
+            recordCountText.innerText = `${scansData.length} item${scansData.length === 1 ? '' : 's'} recorded in database`;
+
+            scansData.forEach((row, index) => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-indigo-50/40 transition duration-150 border-b border-slate-100";
+                
+                // Map status badges
+                let statusBadge = '';
+                switch (row.status) {
+                    case 'Verified':
+                        statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Verified</span>';
+                        break;
+                    case 'Dispatched':
+                        statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">Dispatched</span>';
+                        break;
+                    case 'Returned':
+                        statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">Returned</span>';
+                        break;
+                    default:
+                        statusBadge = '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">Scanned</span>';
+                }
+
+                tr.innerHTML = `
+                    <td class="py-2.5 px-4 font-semibold text-slate-400 border-r border-slate-100">${index + 1}</td>
+                    <td class="py-2.5 px-4 font-mono font-bold text-slate-700 border-r border-slate-100">${sanitizeHTML(row.codeId)}</td>
+                    <td class="py-2.5 px-4 font-medium text-slate-800 border-r border-slate-100">${sanitizeHTML(row.name)}</td>
+                    <td class="py-2.5 px-4 text-slate-600 border-r border-slate-100">${sanitizeHTML(row.category)}</td>
+                    <td class="py-2.5 px-4 border-r border-slate-100">${statusBadge}</td>
+                    <td class="py-2.5 px-4 text-slate-400 font-mono text-[10px] border-r border-slate-100">${row.dateStr}</td>
+                    <td class="py-2.5 px-4 text-center flex items-center justify-center space-x-1">
+                        <button onclick="editScannedRow('${row.id}')" class="p-1.5 hover:bg-indigo-100 rounded text-indigo-600 hover:text-indigo-800 transition" title="Edit Metadata">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </button>
+                        <button onclick="deleteScannedRow('${row.id}')" class="p-1.5 hover:bg-rose-50 rounded text-rose-500 hover:text-rose-700 transition" title="Delete Record">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+            updateSyncBadge('connected', 'Live Cloud Synced');
+        };
+
+        const sanitizeHTML = (str) => {
+            if (!str) return '';
+            return str.replace(/[&<>"']/g, function(m) {
+                switch (m) {
+                    case '&': return '&amp;';
+                    case '<': return '&lt;';
+                    case '>': return '&gt;';
+                    case '"': return '&quot;';
+                    case "'": return '&#039;';
+                    default: return m;
+                }
+            });
+        };
+
+        // UI Toast Controller
+        const triggerSuccessToast = (id, name) => {
+            const toastEl = document.getElementById('live-scan-toast');
+            const toastText = document.getElementById('toast-text');
+            toastText.innerHTML = `Scanned ID <span class="font-mono bg-emerald-100 text-emerald-800 px-1 py-0.2 rounded font-bold">${sanitizeHTML(id)}</span> registered to Google Sheets`;
+            toastEl.classList.remove('hidden');
+            setTimeout(() => {
+                toastEl.classList.add('hidden');
+            }, 6000);
+        };
+
+        const showToast = (message, type = 'success') => {
+            const toast = document.getElementById('global-toast');
+            const msgEl = document.getElementById('global-toast-msg');
+            const iconEl = document.getElementById('global-toast-icon');
+
+            msgEl.innerText = message;
             
-            showToast("Reading file...");
-            tempScanner.scanFile(file, true)
+            // Adjust styles based on category
+            if (type === 'success') {
+                toast.className = "fixed bottom-6 right-6 z-50 p-4 rounded-xl shadow-lg border text-white max-w-sm flex items-center space-x-3 bg-slate-900 border-slate-800 animate-slide-up";
+                iconEl.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-500"></i>';
+            } else if (type === 'error') {
+                toast.className = "fixed bottom-6 right-6 z-50 p-4 rounded-xl shadow-lg border text-white max-w-sm flex items-center space-x-3 bg-rose-950 border-rose-900 animate-slide-up";
+                iconEl.innerHTML = '<i class="fa-solid fa-circle-exclamation text-rose-400"></i>';
+            } else if (type === 'warning') {
+                toast.className = "fixed bottom-6 right-6 z-50 p-4 rounded-xl shadow-lg border text-white max-w-sm flex items-center space-x-3 bg-amber-950 border-amber-900 animate-slide-up";
+                iconEl.innerHTML = '<i class="fa-solid fa-triangle-exclamation text-amber-400"></i>';
+            }
+
+            toast.classList.remove('hidden');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 4000);
+        };
+
+        const updateSyncBadge = (status, text) => {
+            const indicator = document.getElementById('sync-indicator');
+            const statusText = document.getElementById('sync-status');
+
+            statusText.innerText = text;
+            if (status === 'connected') {
+                indicator.className = "h-2.5 w-2.5 bg-emerald-500 rounded-full animate-pulse";
+            } else if (status === 'processing') {
+                indicator.className = "h-2.5 w-2.5 bg-indigo-400 rounded-full animate-spin";
+            } else if (status === 'error') {
+                indicator.className = "h-2.5 w-2.5 bg-rose-500 rounded-full";
+            } else {
+                indicator.className = "h-2.5 w-2.5 bg-slate-400 rounded-full";
+            }
+        };
+
+        // Standalone Launch fallback builder for Google Sites embedding
+        window.launchStandalone = () => {
+            const standaloneUrl = `${window.location.origin}${window.location.pathname}?syncId=${appId}`;
+            try {
+                const win = window.open(standaloneUrl, '_blank');
+                if (!win) throw new Error("Popup blocked");
+            } catch(e) {
+                copyPairingLink();
+                showToast("Pop-up Blocked! Standalone link copied. Paste in a new tab.", "warning");
+            }
+        };
+
+        window.copyPairingLink = () => {
+            const pairingUrl = `${window.location.origin}${window.location.pathname}?syncId=${appId}`;
+            const textarea = document.createElement("textarea");
+            textarea.value = pairingUrl;
+            textarea.style.position = "fixed";
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand("copy");
+                showToast("Standalone URL copied! Paste it in a new tab.", "success");
+            } catch (err) {
+                console.error("URL Copy failed", err);
+            }
+            document.body.removeChild(textarea);
+        };
+
+        // Bypasses browser restriction inside iframes by invoking native device camera app
+        window.triggerNativeCamera = () => {
+            document.getElementById('camera-native-fallback').click();
+        };
+
+        window.handleNativeCameraFallback = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            showToast("Processing photo...");
+            const html5QrCode = new Html5Qrcode("reader");
+            
+            html5QrCode.scanFile(file, true)
                 .then(decodedText => {
-                    displayResult(decodedText);
-                    saveToHistory(decodedText);
-                    showToast("QR Code successfully parsed!");
+                    writeScannedRow(decodedText);
+                    showToast("✓ Code parsed from snapped photo!", "success");
                 })
                 .catch(err => {
-                    showToast("No readable QR code found in image.");
+                    console.warn(err);
+                    showToast("Could not recognize a clear QR code. Please try again.", "error");
                 });
-        });
+        };
 
-        // Render result actions
-        function displayResult(text) {
-            resultText.textContent = text;
-            resultCard.classList.remove('hidden');
+        // ----------------- QR SCANNING UTILITIES -----------------
+        window.startCamera = () => {
+            document.getElementById('camera-placeholder').classList.add('hidden');
+            document.getElementById('camera-iframe-blocker').classList.add('hidden');
+            document.getElementById('btn-stop-camera').classList.remove('hidden');
+            document.getElementById('custom-scan-overlay').classList.remove('hidden');
+            
+            // Initiate html5-qrcode implementation
+            html5QrcodeScanner = new Html5Qrcode("reader");
+            isCameraInitialized = true;
 
-            // Check if string is a valid URL
-            const isUrl = isValidUrl(text);
-            if (isUrl) {
-                actionLinkBtn.href = text;
-                actionLinkBtn.classList.remove('hidden');
+            // HD scanning optimization configurations (forces crisp image capture & perfect proportions)
+            const config = { 
+                fps: 20, 
+                qrbox: (width, height) => {
+                    // Scanning region scale dynamically to 70% of parent dimensions
+                    const side = Math.min(width, height) * 0.70;
+                    return { width: Math.floor(side), height: Math.floor(side) };
+                },
+                videoConstraints: {
+                    facingMode: "environment",
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
+            };
+
+            html5QrcodeScanner.start(
+                { facingMode: "environment" }, 
+                config,
+                onQrCodeScanSuccess,
+                onQrCodeScanFailure
+            ).catch((err) => {
+                console.warn("Camera hardware access exception: ", err);
+                
+                // Show Google Sites iframe restriction overlay
+                document.getElementById('camera-iframe-blocker').classList.remove('hidden');
+                document.getElementById('custom-scan-overlay').classList.add('hidden');
+                
+                showToast("Embedded Restriction. Use native camera workaround.", "warning");
+                stopCamera();
+            });
+        };
+
+        window.stopCamera = () => {
+            if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
+                html5QrcodeScanner.stop().then(() => {
+                    document.getElementById('camera-placeholder').classList.remove('hidden');
+                    document.getElementById('btn-stop-camera').classList.add('hidden');
+                    isCameraInitialized = false;
+                });
             } else {
-                actionLinkBtn.classList.add('hidden');
+                document.getElementById('camera-placeholder').classList.remove('hidden');
+                document.getElementById('btn-stop-camera').classList.add('hidden');
+                isCameraInitialized = false;
             }
+        };
 
-            // Scroll result view into viewport
-            resultCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-
-        // Fallback helper for copying text to clipboard safely inside Google Sites iframe
-        copyBtn.addEventListener('click', () => {
-            const textToCopy = resultText.textContent;
-            
-            // Standard backup manual select/execute command
-            const textArea = document.createElement("textarea");
-            textArea.value = textToCopy;
-            textArea.style.top = "0";
-            textArea.style.left = "0";
-            textArea.style.position = "fixed";
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            
+        const onQrCodeScanSuccess = (decodedText, decodedResult) => {
+            // Audio scan indicator
             try {
-                document.execCommand('copy');
-                showToast("Copied to clipboard!");
-            } catch (err) {
-                showToast("Could not copy. Please select text manually.");
-            }
-            document.body.removeChild(textArea);
-        });
+                const context = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = context.createOscillator();
+                osc.type = "sine";
+                osc.frequency.value = 1200;
+                osc.connect(context.destination);
+                osc.start();
+                setTimeout(() => osc.stop(), 90);
+            } catch(e) {}
 
-        // History Management
-        function saveToHistory(text) {
-            const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            writeScannedRow(decodedText);
             
-            // Avoid adding identical consecutive duplicates
-            if (history.length === 0 || history[0].text !== text) {
-                history.unshift({ text, time: timestamp });
-                if (history.length > 20) history.pop(); // cap history list
-                localStorage.setItem('qr_history', JSON.stringify(history));
-                renderHistory();
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.pause();
+                setTimeout(() => {
+                    if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
+                        try { html5QrcodeScanner.resume(); } catch(e){}
+                    }
+                }, 3000);
             }
-        }
+        };
 
-        function renderHistory() {
-            if (history.length === 0) {
-                emptyHistoryMsg.classList.remove('hidden');
-                clearHistoryBtn.classList.add('hidden');
-                historyList.innerHTML = '';
-                historyList.appendChild(emptyHistoryMsg);
+        const onQrCodeScanFailure = (error) => {
+            // Passive scanner scan updates
+        };
+
+        // File scanning helper
+        window.handleFileScan = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const feedback = document.getElementById('file-scan-feedback');
+            feedback.innerText = "Extracting details from image...";
+            feedback.classList.remove('hidden');
+
+            const html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.scanFile(file, true)
+                .then(decodedText => {
+                    feedback.innerText = `Scan Successful: ID found (${decodedText})`;
+                    writeScannedRow(decodedText);
+                })
+                .catch(err => {
+                    feedback.innerText = "Error: Could not locate a valid QR code in that image file.";
+                    feedback.className = "text-xs text-center p-2 rounded-lg bg-rose-50 text-rose-700 font-medium";
+                });
+        };
+
+        // Manual record add
+        window.handleManualSubmit = (event) => {
+            event.preventDefault();
+            const input = document.getElementById('manual-id-input');
+            const codeVal = input.value.trim();
+            if (codeVal) {
+                writeScannedRow(codeVal);
+                input.value = '';
+                showToast("ID appended to ledger queue");
+            }
+        };
+
+        // ----------------- ACTION HANDLERS -----------------
+        window.editScannedRow = (docId) => {
+            const row = scansData.find(r => r.id === docId);
+            if (!row) return;
+
+            document.getElementById('edit-row-id').value = row.id;
+            document.getElementById('edit-code').value = row.codeId;
+            document.getElementById('edit-name').value = row.name;
+            document.getElementById('edit-category').value = row.category;
+            document.getElementById('edit-status').value = row.status;
+
+            document.getElementById('edit-modal').classList.remove('hidden');
+        };
+
+        window.handleEditSubmit = async (event) => {
+            event.preventDefault();
+            const id = document.getElementById('edit-row-id').value;
+            const updated = {
+                name: document.getElementById('edit-name').value,
+                category: document.getElementById('edit-category').value,
+                status: document.getElementById('edit-status').value
+            };
+
+            if (currentUser && db) {
+                try {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'scanned_ids', id);
+                    await updateDoc(docRef, updated);
+                    closeEditModal();
+                    showToast("Record updated successfully");
+                } catch (e) {
+                    console.error("Firestore update failed", e);
+                }
+            } else {
+                const index = scansData.findIndex(r => r.id === id);
+                if (index !== -1) {
+                    scansData[index] = { ...scansData[index], ...updated };
+                    localStorage.setItem(`backup_ledger_${appId}`, JSON.stringify(scansData));
+                    renderSpreadsheet();
+                    closeEditModal();
+                }
+            }
+        };
+
+        window.deleteScannedRow = async (docId) => {
+            if (currentUser && db) {
+                try {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'scanned_ids', docId);
+                    await deleteDoc(docRef);
+                    showToast("Record deleted");
+                } catch (e) {
+                    console.error("Firestore delete failed", e);
+                }
+            } else {
+                scansData = scansData.filter(r => r.id !== docId);
+                localStorage.setItem(`backup_ledger_${appId}`, JSON.stringify(scansData));
+                renderSpreadsheet();
+                showToast("Record deleted locally");
+            }
+        };
+
+        window.clearAllData = async () => {
+            if (currentUser && db) {
+                try {
+                    updateSyncBadge('processing', 'Purging values...');
+                    for (const row of scansData) {
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'scanned_ids', row.id);
+                        await deleteDoc(docRef);
+                    }
+                    showToast("Cloud ledger cleared completely");
+                } catch (e) {
+                    console.error("Batch clear failed", e);
+                }
+            } else {
+                scansData = [];
+                localStorage.removeItem(`backup_ledger_${appId}`);
+                renderSpreadsheet();
+                showToast("Local spreadsheet cleared");
+            }
+            closeClearConfirmModal();
+        };
+
+        // ----------------- LOCAL DATA FALLBACKS -----------------
+        const backupToLocal = (record) => {
+            const tempId = `local-${record.timestamp}`;
+            const localRecord = { id: tempId, ...record };
+            scansData.unshift(localRecord);
+            localStorage.setItem(`backup_ledger_${appId}`, JSON.stringify(scansData));
+            renderSpreadsheet();
+            triggerSuccessToast(record.codeId, record.name);
+        };
+
+        const loadLocalBackupData = () => {
+            const saved = localStorage.getItem(`backup_ledger_${appId}`);
+            if (saved) {
+                scansData = JSON.parse(saved);
+                renderSpreadsheet();
+            }
+        };
+
+        // ----------------- TAB MANAGEMENT -----------------
+        window.switchTab = (tabName) => {
+            const tabs = ['camera', 'file', 'manual'];
+            tabs.forEach(tab => {
+                const btn = document.getElementById(`tab-btn-${tab}`);
+                const content = document.getElementById(`tab-content-${tab}`);
+                
+                if (tab === tabName) {
+                    btn.className = "flex-1 py-2 text-sm font-semibold rounded-lg bg-white text-indigo-600 shadow-sm transition-all duration-200 flex items-center justify-center space-x-2";
+                    content.classList.remove('hidden');
+                    
+                    if (tabName !== 'camera' && isCameraInitialized) {
+                        stopCamera();
+                    }
+                } else {
+                    btn.className = "flex-1 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-slate-900 transition-all duration-200 flex items-center justify-center space-x-2";
+                    content.classList.add('hidden');
+                }
+            });
+        };
+
+        // ----------------- MOBILE DEVICE LIVE PAIRING -----------------
+        const setupPairingCodes = () => {
+            const pairingUrl = `${window.location.origin}${window.location.pathname}?syncId=${appId}`;
+            document.getElementById('sync-share-url').innerText = pairingUrl;
+
+            const syncQRContainer = document.getElementById('phone-sync-qrcode');
+            syncQRContainer.innerHTML = '';
+            
+            new QRCode(syncQRContainer, {
+                text: pairingUrl,
+                width: 160,
+                height: 160,
+                colorDark : "#0f172a",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.M
+            });
+        };
+
+        window.copySyncLink = () => {
+            const textToCopy = document.getElementById('sync-share-url').innerText;
+            const textarea = document.createElement("textarea");
+            textarea.value = textToCopy;
+            textarea.style.position = "fixed";
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand("copy");
+                showToast("Sync link copied to clipboard");
+            } catch (err) {
+                console.warn("Clipboard execute action failed", err);
+            }
+            document.body.removeChild(textarea);
+        };
+
+        // ----------------- CSV EXPORT UTILITY -----------------
+        window.exportToCSV = () => {
+            if (scansData.length === 0) {
+                showToast("No data available to export yet.", "warning");
                 return;
             }
 
-            emptyHistoryMsg.classList.add('hidden');
-            clearHistoryBtn.classList.remove('hidden');
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "Index,Scanned Code ID,Item Name,Category,Status,Registered At,Scanned Via\n";
 
-            historyList.innerHTML = history.map((item, index) => `
-                <div class="flex justify-between items-start bg-slate-800/60 border border-slate-700/40 p-2.5 rounded-xl hover:bg-slate-800 transition cursor-pointer" onclick="displayResult('${escapeJS(item.text)}')">
-                    <span class="truncate font-mono pr-2 text-slate-200 select-all flex-grow text-left">${escapeHTML(item.text)}</span>
-                    <span class="text-[10px] text-slate-500 whitespace-nowrap pt-0.5">${item.time}</span>
-                </div>
-            `).join('');
-        }
+            scansData.forEach((row, idx) => {
+                const escapedId = `"${row.codeId.replace(/"/g, '""')}"`;
+                const escapedName = `"${row.name.replace(/"/g, '""')}"`;
+                const escapedCategory = `"${row.category.replace(/"/g, '""')}"`;
+                const escapedStatus = `"${row.status.replace(/"/g, '""')}"`;
+                const escapedTime = `"${row.dateStr.replace(/"/g, '""')}"`;
+                const escapedDevice = `"${row.device.replace(/"/g, '""')}"`;
 
-        clearHistoryBtn.addEventListener('click', () => {
-            history = [];
-            localStorage.removeItem('qr_history');
-            renderHistory();
-            showToast("Scan history cleared.");
-        });
+                csvContent += `${idx + 1},${escapId},${escapName},${escapCategory},${escapStatus},${escapTime},${escapDevice}\n`;
+            });
 
-        // Toast Helper
-        function showToast(message) {
-            toastMessage.textContent = message;
-            toast.classList.remove('scale-90', 'opacity-0', 'pointer-events-none');
-            toast.classList.add('scale-100', 'opacity-100');
-            
-            setTimeout(() => {
-                toast.classList.remove('scale-100', 'opacity-100');
-                toast.classList.add('scale-90', 'opacity-0', 'pointer-events-none');
-            }, 3000);
-        }
+            const encodedUri = encodeURI(csvContent);
+            const downloadLink = document.createElement("a");
+            downloadLink.setAttribute("href", encodedUri);
+            downloadLink.setAttribute("download", `qr_scan_ledger_${appId}.csv`);
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            showToast("Spreadsheet CSV exported successfully");
+        };
 
-        // Utility: URL check
-        function isValidUrl(string) {
-            try {
-                new URL(string);
-                return true;
-            } catch (_) {
-                return false;  
-            }
-        }
-
-        // Utility: Sanitizers
-        function escapeHTML(str) {
-            return str.replace(/[&<>'"]/g, 
-                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-            );
-        }
-
-        function escapeJS(str) {
-            return str.replace(/'/g, "\\'").replace(/"/g, '\\"');
-        }
+        // Modal triggers
+        window.openSyncModal = () => document.getElementById('sync-modal').classList.remove('hidden');
+        window.closeSyncModal = () => document.getElementById('sync-modal').classList.add('hidden');
+        window.closeEditModal = () => document.getElementById('edit-modal').classList.add('hidden');
+        window.openClearConfirmModal = () => document.getElementById('clear-confirm-modal').classList.remove('hidden');
+        window.closeClearConfirmModal = () => document.getElementById('clear-confirm-modal').classList.add('hidden');
+        window.hideToast = () => document.getElementById('live-scan-toast').classList.add('hidden');
     </script>
 </body>
 </html>
