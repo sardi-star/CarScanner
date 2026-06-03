@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Smart QR Spreadsheet Sync</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- html5-qrcode for Camera Scanning -->
+    <!-- html5-qrcode for Camera Scanning (Clean unpkg CDN) -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <!-- QRCodeJS for Mobile Pairing QR Generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -29,16 +29,16 @@
             background: #94a3b8;
         }
         
-        /* Fixed: Prevents visual cropping mismatch on mobile portrait displays */
+        /* Mobile-optimized: Ensures exact alignment between visual scan overlay and live video stream dimensions */
         #reader video {
-            object-fit: contain !important;
+            object-fit: cover !important;
             width: 100% !important;
             height: 100% !important;
             background: #090d16 !important;
         }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col">
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col selection:bg-indigo-100">
 
     <!-- Top Navigation Bar -->
     <header class="bg-indigo-600 text-white shadow-md px-6 py-4 flex flex-wrap justify-between items-center gap-4">
@@ -90,10 +90,10 @@
                 <!-- Tab 1: Camera Scanner -->
                 <div id="tab-content-camera" class="mt-4 space-y-4">
                     <div class="relative bg-slate-950 rounded-xl overflow-hidden aspect-video flex flex-col items-center justify-center text-white border border-slate-800">
-                        <!-- Custom Scan Box overlay -->
-                        <div id="custom-scan-overlay" class="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
-                            <div class="w-48 h-48 border-2 border-indigo-500 rounded-2xl opacity-60 flex items-center justify-center">
-                                <div class="w-44 h-44 border border-dashed border-indigo-400 rounded-xl animate-pulse"></div>
+                        <!-- Custom Scan Box overlay (Sized to scale dynamically with video streams) -->
+                        <div id="custom-scan-overlay" class="absolute inset-0 pointer-events-none flex items-center justify-center z-10 hidden">
+                            <div class="w-44 h-44 border-2 border-indigo-500 rounded-2xl opacity-85 flex items-center justify-center shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
+                                <div class="w-40 h-40 border border-dashed border-indigo-300 rounded-xl animate-pulse"></div>
                             </div>
                         </div>
                         
@@ -376,6 +376,11 @@
         let isCameraInitialized = false;
         let html5QrcodeScanner = null;
         let scansData = []; // Local mirror of Firestore scans
+
+        // Scan throttling protection variables to prevent double scanning without causing library crashes
+        let lastScannedText = "";
+        let lastScannedTime = 0;
+        const DOUBLE_SCAN_THROTTLE = 3000; // 3 seconds protection between identical values
 
         // Preconfigured Apps Script Web App Endpoint URL targeting the "ScannerLog" sheet
         const googleScriptUrl = "https://script.google.com/macros/s/AKfycbwpKuG-ugcS-4sZdXl6ITQ1sMqr5i8m36lfJJyA1ZmQWt29TGhHNC2VbKO-7WSRmUJTWg/exec";
@@ -742,35 +747,70 @@
             document.getElementById('btn-stop-camera').classList.remove('hidden');
             document.getElementById('custom-scan-overlay').classList.remove('hidden');
             
-            // Initiate html5-qrcode implementation
+            // Initiate html5-qrcode implementation safely
             html5QrcodeScanner = new Html5Qrcode("reader");
             isCameraInitialized = true;
 
-            // Updated configurations: Streamlined constraints to prevent coordinate offsets on portrait cellphones
+            // Updated mobile configuration parameters
             const config = { 
-                fps: 20, 
+                fps: 15, // Smooth mobile parsing frequency
                 qrbox: (width, height) => {
-                    // Scanning region scale dynamically to 75% of parent dimensions
-                    const side = Math.min(width, height) * 0.75;
-                    return { width: Math.floor(side), height: Math.floor(side) };
+                    const minDimension = Math.min(width, height);
+                    const scanBoxSize = minDimension > 0 ? Math.floor(minDimension * 0.70) : 250;
+                    return { width: scanBoxSize, height: scanBoxSize };
                 }
             };
 
+            // Query physical device camera modules to find the true environment (rear) camera
+            // This prevents Safari/Chrome parsing errors that display active but un-scannable camera screens
+            Html5Qrcode.getCameras().then(devices => {
+                if (devices && devices.length > 0) {
+                    let bestCameraId = devices[0].id;
+                    
+                    // Loop to search for a back/rear camera label keywords
+                    for (let i = 0; i < devices.length; i++) {
+                        const label = devices[i].label.toLowerCase();
+                        if (label.includes('back') || label.includes('rear') || label.includes('environment') || label.includes('facing 0')) {
+                            bestCameraId = devices[i].id;
+                            break;
+                        }
+                    }
+
+                    // Direct connection via Hardware Camera ID
+                    html5QrcodeScanner.start(
+                        bestCameraId, 
+                        config,
+                        onQrCodeScanSuccess,
+                        onQrCodeScanFailure
+                    ).catch(handleCameraError);
+                } else {
+                    // Failover directly to standard facing mode syntax
+                    startCameraFallback(config);
+                }
+            }).catch(err => {
+                console.warn("Hardware enumeration failed, using standard constraint fallback:", err);
+                startCameraFallback(config);
+            });
+        };
+
+        const startCameraFallback = (config) => {
             html5QrcodeScanner.start(
                 { facingMode: "environment" }, 
                 config,
                 onQrCodeScanSuccess,
                 onQrCodeScanFailure
-            ).catch((err) => {
-                console.warn("Camera hardware access exception: ", err);
-                
-                // Show Google Sites iframe restriction overlay
-                document.getElementById('camera-iframe-blocker').classList.remove('hidden');
-                document.getElementById('custom-scan-overlay').classList.add('hidden');
-                
-                showToast("Embedded Restriction. Use native camera workaround.", "warning");
-                stopCamera();
-            });
+            ).catch(handleCameraError);
+        };
+
+        const handleCameraError = (err) => {
+            console.warn("Camera hardware activation error: ", err);
+            
+            // Unmask Google Sites iframe permission blocks
+            document.getElementById('camera-iframe-blocker').classList.remove('hidden');
+            document.getElementById('custom-scan-overlay').classList.add('hidden');
+            
+            showToast("Embedded Restriction. Try our custom photo snap option!", "warning");
+            stopCamera();
         };
 
         window.stopCamera = () => {
@@ -778,16 +818,34 @@
                 html5QrcodeScanner.stop().then(() => {
                     document.getElementById('camera-placeholder').classList.remove('hidden');
                     document.getElementById('btn-stop-camera').classList.add('hidden');
+                    document.getElementById('custom-scan-overlay').classList.add('hidden');
+                    isCameraInitialized = false;
+                }).catch(e => {
+                    document.getElementById('camera-placeholder').classList.remove('hidden');
+                    document.getElementById('btn-stop-camera').classList.add('hidden');
+                    document.getElementById('custom-scan-overlay').classList.add('hidden');
                     isCameraInitialized = false;
                 });
             } else {
                 document.getElementById('camera-placeholder').classList.remove('hidden');
                 document.getElementById('btn-stop-camera').classList.add('hidden');
+                document.getElementById('custom-scan-overlay').classList.add('hidden');
                 isCameraInitialized = false;
             }
         };
 
         const onQrCodeScanSuccess = (decodedText, decodedResult) => {
+            const currentTime = Date.now();
+            
+            // Check double scan throttle delay to protect CPU threads on older phones
+            if (decodedText === lastScannedText && (currentTime - lastScannedTime) < DOUBLE_SCAN_THROTTLE) {
+                return; // Suppress duplicate frames quietly
+            }
+            
+            // Set throttling coordinates
+            lastScannedText = decodedText;
+            lastScannedTime = currentTime;
+
             // Audio scan indicator
             try {
                 const context = new (window.AudioContext || window.webkitAudioContext)();
@@ -800,19 +858,10 @@
             } catch(e) {}
 
             writeScannedRow(decodedText);
-            
-            if (html5QrcodeScanner) {
-                html5QrcodeScanner.pause();
-                setTimeout(() => {
-                    if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
-                        try { html5QrcodeScanner.resume(); } catch(e){}
-                    }
-                }, 3000);
-            }
         };
 
         const onQrCodeScanFailure = (error) => {
-            // Passive scanner scan updates
+            // Unnecessary console flooding suppression
         };
 
         // File scanning helper
