@@ -9,8 +9,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- html5-qrcode for Camera Scanning (Clean unpkg CDN) -->
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <!-- html5-qrcode for Camera Scanning (Clean pinned CDN) -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <!-- QRCodeJS for Mobile Pairing QR Generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
@@ -404,6 +404,15 @@
         let lastScannedTime = 0;
         const DOUBLE_SCAN_THROTTLE = 3000; // 3 seconds protection between identical values
 
+        // Scanner diagnostics system
+        let scannerDebug = true;
+
+        function logScanner(...args) {
+            if (scannerDebug) {
+                console.log("[QR SCANNER]", ...args);
+            }
+        }
+
         // Preconfigured Apps Script Web App Endpoint URL targeting the "ScannerLog" sheet
         const googleScriptUrl = "https://script.google.com/macros/s/AKfycbwpKuG-ugcS-4sZdXl6ITQ1sMqr5i8m36lfJJyA1ZmQWt29TGhHNC2VbKO-7WSRmUJTWg/exec";
 
@@ -771,90 +780,59 @@
         };
 
         // ----------------- QR SCANNING UTILITIES -----------------
-        window.startCamera = () => {
+        window.startCamera = async () => {
+
+            logScanner("Starting camera");
+
+            if (typeof Html5Qrcode === "undefined") {
+                showToast("QR library failed to load", "error");
+                console.error("Html5Qrcode is undefined");
+                return;
+            }
+
             document.getElementById('camera-placeholder').classList.add('hidden');
             document.getElementById('camera-iframe-blocker').classList.add('hidden');
             document.getElementById('btn-stop-camera').classList.remove('hidden');
             document.getElementById('custom-scan-overlay').classList.remove('hidden');
-            
-            // Initiate html5-qrcode implementation safely on parent viewfinder
-            html5QrcodeScanner = new Html5Qrcode("reader");
-            isCameraInitialized = true;
 
-            // Highly Optimized: No mathematical qrbox defined inside JS settings.
-            // This tells the engine to scan the entire 100% video frame, ensuring
-            // rapid scanning regardless of mobile portrait cropping or alignments!
-            const config = { 
-                fps: 24, // High scanning capture speed
-                videoConstraints: {
-                    width: { ideal: 1920 },
-                    height: { ideal: 1080 },
-                    facingMode: "environment"
-                }
-            };
+            try {
 
-            // Query physical camera devices to lock the environment (rear) camera
-            Html5Qrcode.getCameras().then(devices => {
-                if (devices && devices.length > 0) {
-                    let bestCameraId = devices[0].id;
-                    
-                    // Loop to check for rear/back descriptors
-                    for (let i = 0; i < devices.length; i++) {
-                        const label = devices[i].label.toLowerCase();
-                        if (label.includes('back') || label.includes('rear') || label.includes('environment') || label.includes('facing 0')) {
-                            bestCameraId = devices[i].id;
-                            break;
-                        }
-                    }
+                html5QrcodeScanner = new Html5Qrcode("reader");
 
-                    // Direct connection via Hardware Camera ID
-                    html5QrcodeScanner.start(
-                        bestCameraId, 
-                        config,
-                        onQrCodeScanSuccess,
-                        onQrCodeScanFailure
-                    ).then(() => {
-                        // Activate autofocus hardware lock after frame load stabilizes
-                        setTimeout(async () => {
-                            try {
-                                if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
-                                    await html5QrcodeScanner.applyVideoConstraints({
-                                        focusMode: "continuous",
-                                        advanced: [{ zoom: 1.0 }]
-                                    });
-                                }
-                            } catch (focusErr) {
-                                console.warn("Continuous autofocus is unsupported:", focusErr);
-                            }
-                        }, 1500);
-                    }).catch(handleCameraError);
-                } else {
-                    startCameraFallback(config);
-                }
-            }).catch(err => {
-                console.warn("Hardware enumeration failed, using standard constraint fallback:", err);
-                startCameraFallback(config);
-            });
-        };
+                const config = {
+                    fps: 10,
+                    qrbox: {
+                        width: 250,
+                        height: 250
+                    },
+                    aspectRatio: 1.0
+                };
 
-        const startCameraFallback = (config) => {
-            html5QrcodeScanner.start(
-                { facingMode: "environment" }, 
-                config,
-                onQrCodeScanSuccess,
-                onQrCodeScanFailure
-            ).catch(handleCameraError);
-        };
+                await html5QrcodeScanner.start(
+                    { facingMode: "environment" },
+                    config,
+                    onQrCodeScanSuccess,
+                    onQrCodeScanFailure
+                );
 
-        const handleCameraError = (err) => {
-            console.warn("Camera hardware activation error: ", err);
-            
-            // Show Google Sites iframe warning screen
-            document.getElementById('camera-iframe-blocker').classList.remove('hidden');
-            document.getElementById('custom-scan-overlay').classList.add('hidden');
-            
-            showToast("Embedded Restriction. Try our custom photo snap option!", "warning");
-            stopCamera();
+                isCameraInitialized = true;
+
+                logScanner("Camera started successfully");
+
+            } catch (err) {
+
+                console.error("Camera start error:", err);
+
+                showToast(
+                    "Camera failed: " + (err?.message || err),
+                    "error"
+                );
+
+                document.getElementById('camera-iframe-blocker')
+                    .classList.remove('hidden');
+
+                stopCamera();
+            }
         };
 
         window.stopCamera = () => {
