@@ -354,6 +354,23 @@
         </div>
     </div>
 
+    <!-- MODAL 4: Camera Scan Auto-Ingest Success Splash Screen -->
+    <div id="auto-ingest-modal" class="hidden fixed inset-0 bg-emerald-950/95 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center text-white">
+        <div class="w-24 h-24 bg-emerald-500/10 text-emerald-400 rounded-full flex items-center justify-center text-5xl mb-6 border-4 border-emerald-500 shadow-xl shadow-emerald-500/25 animate-bounce">
+            <i class="fa-solid fa-check"></i>
+        </div>
+        <h2 class="text-2xl font-black tracking-tight mb-2">Code Ingested Successfully!</h2>
+        <p class="text-sm text-emerald-300 max-w-xs mb-8 leading-relaxed">
+            Your phone's camera successfully fed the barcode data directly into the connected Google Spreadsheet!
+        </p>
+        <div class="bg-white/10 px-6 py-3 rounded-xl border border-white/10 font-mono font-bold text-lg mb-8 tracking-wider">
+            ID: <span id="auto-ingested-id-text">...</span>
+        </div>
+        <button onclick="closeAutoIngestModal()" class="px-8 py-3 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-emerald-950 font-extrabold rounded-xl text-sm transition shadow-lg shadow-emerald-500/20">
+            Scan Another Code
+        </button>
+    </div>
+
     <!-- UI Feedback Toast system -->
     <div id="global-toast" class="hidden fixed bottom-6 right-6 z-50 p-4 rounded-xl shadow-lg border text-white max-w-sm flex items-center space-x-3 animate-slide-up">
         <div id="global-toast-icon" class="text-lg"></div>
@@ -453,11 +470,14 @@
                 await authenticateUser();
                 
                 // Watch Auth State Changes
-                onAuthStateChanged(auth, (user) => {
+                onAuthStateChanged(auth, async (user) => {
                     if (user) {
                         currentUser = user;
                         updateSyncBadge('connected', 'Live Cloud Synced');
                         startDatabaseListener();
+                        
+                        // NEW: Listen for URL Parameters (Method 1: Auto-Ingestion)
+                        checkForAutoIngestParams();
                     } else {
                         updateSyncBadge('offline', 'Offline Mode');
                     }
@@ -467,6 +487,30 @@
                 loadLocalBackupData();
             }
         });
+
+        // NEW: Check if URL parameters contain data to auto-feed into database/sheet
+        const checkForAutoIngestParams = async () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('addCode')) {
+                const codeToIngest = urlParams.get('addCode').trim();
+                if (codeToIngest) {
+                    showToast("Camera scan detected! Ingesting...", "success");
+                    await writeScannedRow(codeToIngest);
+                    
+                    // Show giant splash screen overlay for immediate native feedback
+                    document.getElementById('auto-ingested-id-text').innerText = codeToIngest;
+                    document.getElementById('auto-ingest-modal').classList.remove('hidden');
+
+                    // Clean URL immediately to prevent double submission if page is refreshed
+                    const cleanUrl = `${window.location.origin}${window.location.pathname}?syncId=${appId}`;
+                    window.history.replaceState({}, document.title, cleanUrl);
+                }
+            }
+        };
+
+        window.closeAutoIngestModal = () => {
+            document.getElementById('auto-ingest-modal').classList.add('hidden');
+        };
 
         // ----------------- FIRESTORE LIVE DATA SYNC (RULE 1 & 2) -----------------
         const startDatabaseListener = () => {
@@ -751,13 +795,20 @@
             html5QrcodeScanner = new Html5Qrcode("reader");
             isCameraInitialized = true;
 
-            // Updated mobile configuration parameters
+            // Updated mobile configuration parameters with high-definition resolution limits
+            // This prevents blurry rendering on iOS Safari / Chrome that silences decoding
             const config = { 
-                fps: 15, // Smooth mobile parsing frequency
+                fps: 24, // High-performance frames evaluated per second
                 qrbox: (width, height) => {
                     const minDimension = Math.min(width, height);
-                    const scanBoxSize = minDimension > 0 ? Math.floor(minDimension * 0.70) : 250;
+                    const scanBoxSize = minDimension > 0 ? Math.floor(minDimension * 0.75) : 250;
                     return { width: scanBoxSize, height: scanBoxSize };
+                },
+                // Force full-resolution cameras to make tiny modules crystal-clear
+                videoConstraints: {
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    facingMode: "environment"
                 }
             };
 
@@ -782,7 +833,23 @@
                         config,
                         onQrCodeScanSuccess,
                         onQrCodeScanFailure
-                    ).catch(handleCameraError);
+                    ).then(() => {
+                        // Wait 1.5 seconds after start to apply autofocus and reset tracks
+                        // This fixes the silent decoding block on iOS and Android Chrome browsers
+                        setTimeout(async () => {
+                            try {
+                                if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
+                                    await html5QrcodeScanner.applyVideoConstraints({
+                                        focusMode: "continuous",
+                                        advanced: [{ zoom: 1.0 }]
+                                    });
+                                    console.log("Continuous autofocus constraints applied successfully.");
+                                }
+                            } catch (focusErr) {
+                                console.warn("Auto-focus mode continuous is unsupported or blocked:", focusErr);
+                            }
+                        }, 1500);
+                    }).catch(handleCameraError);
                 } else {
                     // Failover directly to standard facing mode syntax
                     startCameraFallback(config);
@@ -799,7 +866,19 @@
                 config,
                 onQrCodeScanSuccess,
                 onQrCodeScanFailure
-            ).catch(handleCameraError);
+            ).then(() => {
+                // Wait 1.5 seconds to apply autofocus on fallback camera tracks
+                setTimeout(async () => {
+                    try {
+                        if (html5QrcodeScanner && html5QrcodeScanner.isScanning) {
+                            await html5QrcodeScanner.applyVideoConstraints({
+                                focusMode: "continuous",
+                                advanced: [{ zoom: 1.0 }]
+                            });
+                        }
+                    } catch (e) {}
+                }, 1500);
+            }).catch(handleCameraError);
         };
 
         const handleCameraError = (err) => {
