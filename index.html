@@ -782,56 +782,34 @@ function logScanner(...args) {
         // ----------------- QR SCANNING UTILITIES -----------------
         window.startCamera = async () => {
 
-    logScanner("Starting camera");
-
-    if (typeof Html5Qrcode === "undefined") {
-        showToast("QR library failed to load", "error");
-        console.error("Html5Qrcode is undefined");
-        return;
-    }
-
-    document.getElementById('camera-placeholder').classList.add('hidden');
-    document.getElementById('camera-iframe-blocker').classList.add('hidden');
-    document.getElementById('btn-stop-camera').classList.remove('hidden');
-    document.getElementById('custom-scan-overlay').classList.remove('hidden');
-
     try {
 
         html5QrcodeScanner = new Html5Qrcode("reader");
 
-        const config = {
-            fps: 10,
-            qrbox: {
-                width: 250,
-                height: 250
-            },
-            aspectRatio: 1.0
-        };
-
         await html5QrcodeScanner.start(
             { facingMode: "environment" },
-            config,
-            onQrCodeScanSuccess,
-            onQrCodeScanFailure
+            {
+                fps: 10,
+                qrbox: {
+                    width: 250,
+                    height: 250
+                }
+            },
+            (decodedText) => {
+                console.log("QR FOUND:", decodedText);
+                writeScannedRow(decodedText);
+            },
+            () => {}
         );
-
-        isCameraInitialized = true;
-
-        logScanner("Camera started successfully");
 
     } catch (err) {
 
-        console.error("Camera start error:", err);
+        console.error(err);
 
-        showToast(
-            "Camera failed: " + (err?.message || err),
-            "error"
+        alert(
+            "Camera failed:\n\n" +
+            (err.message || err)
         );
-
-        document.getElementById('camera-iframe-blocker')
-            .classList.remove('hidden');
-
-        stopCamera();
     }
 };
 
@@ -1263,7 +1241,7 @@ function logScanner(...args) {
                 const escapedTime = `"${row.dateStr.replace(/"/g, '""')}"`;
                 const escapedDevice = `"${row.device.replace(/"/g, '""')}"`;
 
-                csvContent += `${idx + 1},${escapId},${escapName},${escapCategory},${escapStatus},${escapTime},${escapDevice}\n`;
+                csvContent += `${idx + 1},${escapedId},${escapedName},${escapedCategory},${escapedStatus},${escapedTime},${escapedDevice}\n`;
             });
 
             const encodedUri = encodeURI(csvContent);
