@@ -10,7 +10,7 @@
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- html5-qrcode for Camera Scanning (Clean unpkg CDN) -->
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <!-- QRCodeJS for Mobile Pairing QR Generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     
@@ -407,15 +407,6 @@
         // Preconfigured Apps Script Web App Endpoint URL targeting the "ScannerLog" sheet
         const googleScriptUrl = "https://script.google.com/macros/s/AKfycbwpKuG-ugcS-4sZdXl6ITQ1sMqr5i8m36lfJJyA1ZmQWt29TGhHNC2VbKO-7WSRmUJTWg/exec";
 
-let scannerDebug = true;
-
-function logScanner(...args) {
-    if (scannerDebug) {
-        console.log("[QR SCANNER]", ...args);
-    }
-}
-        
-        
         // ----------------- FIREBASE SETUP -----------------
         const fallbackConfig = {
             apiKey: "mock-api-key-for-local-runs",
@@ -780,38 +771,27 @@ function logScanner(...args) {
         };
 
         // ----------------- QR SCANNING UTILITIES -----------------
-        window.startCamera = async () => {
+        window.startCamera = () => {
+            document.getElementById('camera-placeholder').classList.add('hidden');
+            document.getElementById('camera-iframe-blocker').classList.add('hidden');
+            document.getElementById('btn-stop-camera').classList.remove('hidden');
+            document.getElementById('custom-scan-overlay').classList.remove('hidden');
+            
+            // Initiate html5-qrcode implementation safely on parent viewfinder
+            html5QrcodeScanner = new Html5Qrcode("reader");
+            isCameraInitialized = true;
 
-    try {
-
-        html5QrcodeScanner = new Html5Qrcode("reader");
-
-        await html5QrcodeScanner.start(
-            { facingMode: "environment" },
-            {
-                fps: 10,
-                qrbox: {
-                    width: 250,
-                    height: 250
+            // Highly Optimized: No mathematical qrbox defined inside JS settings.
+            // This tells the engine to scan the entire 100% video frame, ensuring
+            // rapid scanning regardless of mobile portrait cropping or alignments!
+            const config = { 
+                fps: 24, // High scanning capture speed
+                videoConstraints: {
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 },
+                    facingMode: "environment"
                 }
-            },
-            (decodedText) => {
-                console.log("QR FOUND:", decodedText);
-                writeScannedRow(decodedText);
-            },
-            () => {}
-        );
-
-    } catch (err) {
-
-        console.error(err);
-
-        alert(
-            "Camera failed:\n\n" +
-            (err.message || err)
-        );
-    }
-};
+            };
 
             // Query physical camera devices to lock the environment (rear) camera
             Html5Qrcode.getCameras().then(devices => {
@@ -898,62 +878,30 @@ function logScanner(...args) {
             }
         };
 
-        const onQrCodeScanSuccess = async (decodedText) => {
+        const onQrCodeScanSuccess = (decodedText, decodedResult) => {
+            const currentTime = Date.now();
+            
+            // Verify scan throttle limit to protect system loops
+            if (decodedText === lastScannedText && (currentTime - lastScannedTime) < DOUBLE_SCAN_THROTTLE) {
+                return; 
+            }
+            
+            lastScannedText = decodedText;
+            lastScannedTime = currentTime;
 
-    logScanner("QR FOUND:", decodedText);
+            // Audio scan indicator beep
+            try {
+                const context = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = context.createOscillator();
+                osc.type = "sine";
+                osc.frequency.value = 1200;
+                osc.connect(context.destination);
+                osc.start();
+                setTimeout(() => osc.stop(), 90);
+            } catch(e) {}
 
-    const currentTime = Date.now();
-
-    if (
-        decodedText === lastScannedText &&
-        (currentTime - lastScannedTime) < DOUBLE_SCAN_THROTTLE
-    ) {
-        return;
-    }
-
-    lastScannedText = decodedText;
-    lastScannedTime = currentTime;
-
-    try {
-
-        const audioCtx = new (
-            window.AudioContext ||
-            window.webkitAudioContext
-        )();
-
-        const osc = audioCtx.createOscillator();
-
-        osc.frequency.value = 1200;
-
-        osc.connect(audioCtx.destination);
-
-        osc.start();
-
-        setTimeout(() => {
-            osc.stop();
-        }, 80);
-
-    } catch (e) {}
-
-    try {
-
-        await writeScannedRow(decodedText);
-
-        showToast(
-            `Scanned: ${decodedText}`,
-            "success"
-        );
-
-    } catch (err) {
-
-        console.error("Write failed", err);
-
-        showToast(
-            "Scan detected but save failed",
-            "error"
-        );
-    }
-};
+            writeScannedRow(decodedText);
+        };
 
         const onQrCodeScanFailure = (error) => {
             // Passive scanner scan updates
@@ -1241,7 +1189,7 @@ function logScanner(...args) {
                 const escapedTime = `"${row.dateStr.replace(/"/g, '""')}"`;
                 const escapedDevice = `"${row.device.replace(/"/g, '""')}"`;
 
-                csvContent += `${idx + 1},${escapedId},${escapedName},${escapedCategory},${escapedStatus},${escapedTime},${escapedDevice}\n`;
+                csvContent += `${idx + 1},${escapId},${escapName},${escapCategory},${escapStatus},${escapTime},${escapDevice}\n`;
             });
 
             const encodedUri = encodeURI(csvContent);
